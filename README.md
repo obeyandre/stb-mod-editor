@@ -6,7 +6,11 @@ This project provides an interactive way to modify characters.
 The game is moddable, and each character can be serialized as JSON.
 All changes made through the editor are reflected to the JSON data, which can be downloaded back.
 
-[Online version](https://benoitryder.github.io/stb-mod-editor/)
+## Use the Web Editor
+
+[https://obeyandre.github.io/stb-mod-editor/](https://obeyandre.github.io/stb-mod-editor/)
+
+
 
 ## How to build
 
