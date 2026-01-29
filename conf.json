@@ -1,9 +1,16 @@
 {
   "characterUrls": {
-    "sinbad": "data/sinbad.json",
-    "kiki": "data/kiki.json",
-    "pepper": "data/pepper.json",
-    "vgsage": "data/vgsage.json",
-    "sunny": "data/sunny.json"
+	"SMASH": "",
+	"leonardo": "data/smash/leonardo.json",
+    "simon": "data/smash/simon.json",
+    "ness": "data/smash/ness.json",
+    "sonic": "data/smash/sonic.json",
+    "mario": "data/smash/mario.json",
+    "STANDARD": "",
+    "sinbad": "data/standard/sinbad.json",
+    "kiki": "data/standard/kiki.json",
+    "pepper": "data/standard/pepper.json",
+    "vgsage": "data/standard/vgsage.json",
+    "sunny": "data/standard/sunny.json"
   }
 }

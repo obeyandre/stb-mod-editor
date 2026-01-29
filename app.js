@@ -356,14 +356,16 @@ class Utils {
 
   static floodFillTile(pixels, x, y, color) {
     let filled_color = pixels[y][x];
-    let stack = [[x, y]];
-    while (stack.length) {
-      let [x, y] = stack.pop();
-      if (x < 0 || x > 7 || y < 0 || y > 7) {
-        continue;
-      } else if (pixels[y][x] === filled_color) {
-        pixels[y][x] = color;
-        stack.push([x-1, y], [x+1, y], [x, y-1], [x, y+1]);
+    if(filled_color !== color) {
+      let stack = [[x, y]];
+      while (stack.length) {
+        let [x, y] = stack.pop();
+        if (x < 0 || x > 7 || y < 0 || y > 7) {
+            continue;
+        } else if (pixels[y][x] === filled_color) {
+          pixels[y][x] = color;
+          stack.push([x-1, y], [x+1, y], [x, y-1], [x, y+1]);
+        }
       }
     }
   }
@@ -1037,7 +1039,7 @@ const app = Vue.createApp({
         <ul>
           <li v-for="info in characterFileIndex" @click="loadCharacterFile(info.name)">{{ info.name }}
             <i class="fas fa-trash-alt" style="float: right" @click="deleteCharacterFile(info.name)" /></li>
-          <li v-for="(url, name) in characterUrls" @click="loadCharacterUrl(name, url)"><i class="fas fa-external-link-alt"/> {{ name }}</li>
+          <li v-for="(url, name) in characterUrls" @click="url && loadCharacterUrl(name, url)"><i v-if="url" class="fas fa-external-link-alt"/> <span v-if="!url" style="font-weight: bold;">{{ name }}</span><span v-if="url">{{ name }}</span></li>
         </ul>
       </div>
     </div>
@@ -1644,12 +1646,15 @@ app.component('stb-animation-thumbnail', {
       const swap = this.swap === undefined ? this.conf.colorSwap : this.swap;
       const palettes = this.data === undefined ? Utils.getPalettes(this.tree, swap) : Utils.getPalettes(this.data, swap);
       const tree = this.data === undefined ? this.tree : this.data;
+      
+      let magnify = this.zoom;
+      if(magnify < 2) magnify = 2;
 
       // Prepare the canvas
       const canvas = this.$refs.canvas;
       const ctx = canvas.getContext('2d');
-      ctx.canvas.width = rect.width * this.zoom;
-      ctx.canvas.height = rect.height * this.zoom;
+      ctx.canvas.width = rect.width * magnify;
+      ctx.canvas.height = rect.height * magnify;
 
       const frames = this.animation.frames;
 
@@ -1657,7 +1662,7 @@ app.component('stb-animation-thumbnail', {
         ctx.fillStyle = this.conf.bgColor;
         ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         Utils.drawSingleFrame(ctx, tree, frame, {
-          zoom: this.zoom, palettes, dx: -rect.x, dy: -rect.y,
+          zoom: magnify, palettes, dx: -rect.x, dy: -rect.y,
         });
         return createImageBitmap(canvas);
       });
@@ -2090,7 +2095,7 @@ const TilesetTab = {
 
 
 const AnimationsTab = {
-  inject: ['tree'],
+  inject: ['tree', 'conf'],
 
   data() {
     return {
@@ -2114,7 +2119,7 @@ const AnimationsTab = {
       <h2>Animations</h2>
       <ul>
         <li v-for="anim in getMandatoryAnimations()">
-          <stb-animation-thumbnail :animation="anim" :zoom="2" :rect="animRect"
+          <stb-animation-thumbnail :animation="anim" :zoom="conf.zoom / 4" :rect="animRect"
           />
           <router-link :to="'/animations/'+anim.name">{{ anim.name }}</router-link>
         </li>
@@ -2125,7 +2130,7 @@ const AnimationsTab = {
         >
           <template v-slot:item="props">
             <li>
-              <stb-animation-thumbnail :animation="props.item" :zoom="2" :rect="animRect" />
+              <stb-animation-thumbnail :animation="props.item" :zoom="conf.zoom / 4" :rect="animRect" />
               <router-link :to="'/animations/'+props.item.name">{{ props.item.name }}</router-link>
             </li>
           </template>
@@ -2335,7 +2340,7 @@ const AnimationTab = {
         <div class="icon" @click="removeSelectedFrame()" v-show="selectedFrame">
           <i class="fas fa-trash-alt" />
         </div>
-        <stb-animation-thumbnail :animation="animation" :zoom="2" :rect="thumbnailRect" />
+        <stb-animation-thumbnail :animation="animation" :zoom="4" :rect="thumbnailRect" />
       </div>
       <div>
         <stb-animation-frame v-if="selectedFrame" :frame="selectedFrame" :rect="frameRect" draggable />
@@ -2451,7 +2456,7 @@ const ColorsTab = {
           <stb-animation-thumbnail
             v-if="previewedAnimationName"
             :animation="previewedAnimation"
-            :zoom="2"
+            :zoom="conf.zoom"
             :rect="previewedAnimationRect"
             :swap="selectedSwap"
            />
@@ -2915,6 +2920,34 @@ const HelpTab = {
   `,
 }
 
+const StartTab = {
+  inject: ['tree','conf'],
+
+  computed: {
+    previewAnimationRect() {
+       return {
+          x: -14, y: -12, width: 32, height: 32,
+        };
+    },
+  },
+
+  methods: {
+    getPreviewAnimation(data) {
+      return Utils.getAnimationByName(data, data[MANDATORY_ANIMATION_NAMES[0]].name)
+    },
+  },
+
+  template: `
+    <div id="start">
+      <div v-if="this.tree">
+        <h4>&nbsp;</h4>
+        <stb-animation-thumbnail :animation="getPreviewAnimation(this.tree)"
+                :zoom="this.conf.zoom - 8" :rect="previewAnimationRect" />
+      </div>
+    </div>
+  `,
+}
+
 
 const routes = [
   { path: '/illustrations', component: IllustrationsTab },
@@ -2927,6 +2960,7 @@ const routes = [
   { path: '/ai/', component: AiTab },
   { path: '/rom', component: RomTab },
   { path: '/help', component: HelpTab },
+  { path: '/', component: StartTab },
 ]
 
 const router = VueRouter.createRouter({
