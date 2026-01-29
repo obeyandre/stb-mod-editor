@@ -2737,19 +2737,25 @@ const RomTab = {
     },
     loadCharacterSlots() {
       if(!this.characterSlots) this.characterSlots = new Array(5);
+	  const charD = this.characterData;
       for(i=0; i<this.characterSlots.length; i++) {
         const chars = this.getCharacterSlot(i);
-        const charD = this.characterData;
         if(chars) {
           const charf = charD.find(obj => obj.id === chars.id);
           if(charf) {
-              charf.data = chars.data;
-              this.characterSlots[i] = charf;
-              if(!chars.isDefault) {
-                this.characterSlots[i].data = JSON.parse(localStorage.getItem(`stbeditor.data.${chars.name}`));
-              }
+            charf.data = chars.data;
+            this.characterSlots[i] = charf;
+            if(!chars.isDefault) {
+              this.characterSlots[i].data = JSON.parse(localStorage.getItem(`stbeditor.data.${chars.name}`));
+            }
           }
-          else this.characterSlots[i] = chars;
+          else {
+            if(chars.isDefault) this.characterSlots[i] = chars;
+            else {
+              this.characterSlots[i] = null;
+              localStorage.removeItem(`stbeditor.slot.${i}`);
+            }
+          }
         }
       }
     },
