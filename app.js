@@ -2636,7 +2636,7 @@ const RomTab = {
           { "id": 4, "name": "sunny" },
       ],
       characterSlots: null,
-      characterFiles: [],
+      characterFiles: null,
       modTemplate: null,
     }
   },
@@ -2654,24 +2654,22 @@ const RomTab = {
       return this.romData ? RomPatcher.getRomName(this.romData) : null;
     },
     characterData() {
-      this.characterFiles = [];
-      let idx = 0;
-      this.characterFiles.push({ "idx": idx++, "id": "" });
+      this.characterFiles = {};
+      this.characterFiles[""] = { "id": "" };
       for(charfile in this.characterFileIndex) {
-        this.characterFiles.push({ "idx": idx++, "id": this.characterFileIndex[charfile].name, "name": this.characterFileIndex[charfile].name, "data": JSON.parse(localStorage.getItem(`stbeditor.data.${this.characterFileIndex[charfile].name}`)), "isDefault": false });
+        this.characterFiles[this.characterFileIndex[charfile].name] = { "id": this.characterFileIndex[charfile].name, "name": this.characterFileIndex[charfile].name, "data": JSON.parse(localStorage.getItem(`stbeditor.data.${this.characterFileIndex[charfile].name}`)), "isDefault": false };
       }
       for(charfile in this.characterUrls) {
-        const entry = { "idx": idx++, "id": "->"+charfile, "name": charfile, "data": this.characterUrls[charfile], "isDefault": true };
+        const entry = { "id": "->"+charfile, "name": charfile, "data": this.characterUrls[charfile], "isDefault": true };
         if(entry.data) {
-            this.characterFiles.push(entry);
+            this.characterFiles[entry.id] = entry;
             fetch(entry.data)
             .then(response => response.json())
             .then(data => {
-              this.characterFiles[entry.idx].data = data;
+              this.characterFiles[entry.id].data = data;
             })
             .catch(err => console.error(err));
         }
-        else idx--;
       }
       return this.characterFiles;
     },
@@ -2721,10 +2719,11 @@ const RomTab = {
     },
     getCharacterFiles(slot) {
       const characterSlotName = this.characters[slot].name;
-      const charD = this.characterData;
+	  const charData = this.characterData;
       let charDforSlot = [];
-      for(i=0; i<charD.length; i++) {
-        if(!charD[i].data || charD[i].data.name === characterSlotName) charDforSlot.push(charD[i]);
+      for(charD in charData) {
+		charD = charData[charD];
+        if(!charD.data || charD.data.name === characterSlotName) charDforSlot.push(charD);
       }
       return charDforSlot;
     },
@@ -2741,7 +2740,7 @@ const RomTab = {
       for(i=0; i<this.characterSlots.length; i++) {
         const chars = this.getCharacterSlot(i);
         if(chars) {
-          const charf = charD.find(obj => obj.id === chars.id);
+          const charf = charD[chars.id];
           if(charf) {
             charf.data = chars.data;
             this.characterSlots[i] = charf;
