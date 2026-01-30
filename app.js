@@ -2793,12 +2793,12 @@ const RomTab = {
         <div> 
             <p v-for="slot in characters" :key="slot.id"> 
             <span v-if="characterSlotsFilled">
-            <stb-animation-thumbnail v-if="characterSlots[slot.id] && characterSlots[slot.id].data" :animation="getPreviewAnimation(characterSlots[slot.id].data)"
+            <stb-animation-thumbnail v-if="characterSlots[slot.id] && characterSlots[slot.id].data && characterFiles[characterSlots[slot.id].id]" :animation="getPreviewAnimation(characterSlots[slot.id].data)"
                 :zoom="2" :rect="previewAnimationRect" :data="characterSlots[slot.id].data" />
-            <canvas v-if="!characterSlots[slot.id] || !characterSlots[slot.id].data" ref="canvas" class="stb-animation-thumbnail" style="width: 64px; height: 64px" />
+            <canvas v-if="!characterSlots[slot.id] || !characterSlots[slot.id].data || !characterFiles[characterSlots[slot.id].id]" ref="canvas" class="stb-animation-thumbnail" style="width: 64px; height: 64px" />
             </span>
             <input :disabled="true" v-model="slot.id" type="number" style="width: 3em" />
-            <select v-model="this.characterSlots[slot.id]" @change="saveCharacterSlot(slot.id)" style="width: 150px;"> <option v-for="characterfile in getCharacterFiles(slot.id)" :key="characterfile.id" :value="characterfile" :style="{ color: characterfile.isDefault ? '#999' : 'white' }">{{ characterfile.name }}</option> </select>
+            <select v-model="characterSlots[slot.id]" @change="saveCharacterSlot(slot.id)" style="width: 150px;"> <option v-for="characterfile in getCharacterFiles(slot.id)" :key="characterfile.id" :value="characterfile" :style="{ color: characterfile.isDefault ? '#999' : 'white' }">{{ characterfile.name }}</option> </select>
             &nbsp;<i class="fas fa-people-arrows"></i>&nbsp;
             {{ slot.name }}
             </p>
