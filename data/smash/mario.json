@@ -4344,7 +4344,7 @@
             "enabled": true,
             "force_h": 0,
             "force_v": 0,
-            "hitstun": 0,
+            "hitstun": 4,
             "left": -5,
             "right": 6,
             "top": -1,
@@ -4411,7 +4411,7 @@
             "enabled": false,
             "force_h": 0,
             "force_v": 0,
-            "hitstun": 0,
+            "hitstun": 4,
             "left": -8,
             "right": 5,
             "top": 5,
@@ -4486,7 +4486,7 @@
             "enabled": false,
             "force_h": 0,
             "force_v": 0,
-            "hitstun": 0,
+            "hitstun": 4,
             "left": -8,
             "right": 5,
             "top": 8,
@@ -4959,7 +4959,7 @@
           "type": "animation_frame"
         },
         {
-          "duration": 3,
+          "duration": 2,
           "hitbox": null,
           "hurtbox": {
             "bottom": 9,
@@ -5029,7 +5029,7 @@
           "type": "animation_frame"
         },
         {
-          "duration": 3,
+          "duration": 2,
           "hitbox": null,
           "hurtbox": {
             "bottom": 10,
@@ -5083,7 +5083,7 @@
           "type": "animation_frame"
         },
         {
-          "duration": 3,
+          "duration": 2,
           "hitbox": null,
           "hurtbox": {
             "bottom": 12,
@@ -5137,7 +5137,7 @@
           "type": "animation_frame"
         },
         {
-          "duration": 3,
+          "duration": 2,
           "hitbox": null,
           "hurtbox": {
             "bottom": 16,
@@ -5322,7 +5322,7 @@
             "enabled": true,
             "force_h": 0,
             "force_v": -5,
-            "hitstun": 4,
+            "hitstun": 6,
             "left": -14,
             "right": -2,
             "top": 10,
@@ -5905,7 +5905,7 @@
             "enabled": true,
             "force_h": 0,
             "force_v": -10,
-            "hitstun": 6,
+            "hitstun": 3,
             "left": -4,
             "right": 4,
             "top": -1,
@@ -5980,7 +5980,7 @@
             "enabled": false,
             "force_h": 0,
             "force_v": -10,
-            "hitstun": 6,
+            "hitstun": 3,
             "left": 2,
             "right": 9,
             "top": -8,
@@ -6055,7 +6055,7 @@
             "enabled": false,
             "force_h": 0,
             "force_v": -10,
-            "hitstun": 6,
+            "hitstun": 3,
             "left": 2,
             "right": 9,
             "top": -9,
@@ -6138,7 +6138,7 @@
             "enabled": false,
             "force_h": 0,
             "force_v": -10,
-            "hitstun": 6,
+            "hitstun": 3,
             "left": 0,
             "right": 9,
             "top": -6,
@@ -7167,7 +7167,7 @@
     {
       "frames": [
         {
-          "duration": 8,
+          "duration": 6,
           "hitbox": null,
           "hurtbox": {
             "bottom": 16,
@@ -7285,13 +7285,13 @@
         {
           "duration": 3,
           "hitbox": {
-            "base_h": -200,
+            "base_h": -750,
             "base_v": -500,
             "bottom": 5,
             "damages": 2,
             "enabled": true,
-            "force_h": -1,
-            "force_v": -3,
+            "force_h": -3,
+            "force_v": -2,
             "hitstun": 0,
             "left": 0,
             "right": 10,
@@ -8411,12 +8411,12 @@
           "duration": 4,
           "hitbox": {
             "base_h": -300,
-            "base_v": -1000,
+            "base_v": -1500,
             "bottom": 11,
             "damages": 3,
             "enabled": true,
             "force_h": -4,
-            "force_v": -30,
+            "force_v": -50,
             "hitstun": 0,
             "left": -6,
             "right": 16,

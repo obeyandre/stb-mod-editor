@@ -520,11 +520,16 @@ class RomPatcher {
   static NES_HEADER_SIZE = 0x10;  // note: assume no trainer area
   static BANK_SIZE = 0x4000;
   // Value specific to a given rom; should be made generic
-  static FIRST_MOD_BANK = 0x4 + 0x11;
+  static FIRST_MOD_BANK = {
+    2.5: 0x4 + 0x11,
+    2.6: 0x4 + 0x12
+  };
   // Hashes of known ROMs
   static KNOWN_ROMS = {
-    "utmgm9": { "name": "Super Tilt Bro. v2.5 hash:utmgm9", "isOnlineEnabled": true },
-    "itn6my": { "name": "Super Tilt Bro. v2.5 hash:itn6my", "isOnlineEnabled": false }
+    "utmgm9": { name: "Super Tilt Bro.", version: 2.5, isOnlineEnabled: true },
+    "itn6my": { name: "Super Tilt Bro.", version: 2.5, isOnlineEnabled: false },
+    "1fqcsvf": { name: "Super Tilt Bro.", version: 2.6, isOnlineEnabled: true },
+    "1vm7kcs": { name: "Super Tilt Bro.", version: 2.6, isOnlineEnabled: false }
   };
 
   constructor(storage, onchange) {
@@ -553,15 +558,20 @@ class RomPatcher {
   setCharacterSlot(index) {
     this.storage.setItem('stbeditor.rom.characterSlot', index.toString());
   }
+  
+  static getFirstModBank(version) {
+    if(version) return this.FIRST_MOD_BANK[version];
+    return this.FIRST_MOD_BANK[Object.keys(this.FIRST_MOD_BANK).pop()];
+  }
 
   // Check a ROM buffer, log error, return an error message, null if everything is fine
-  static checkRom(buffer) {
+  static checkRom(buffer, version) {
     const magic = new TextDecoder().decode(buffer.slice(0, 4));
     if (magic != "NES\x1a") {
       return "Invalid ROM magic code";
     }
 
-    if (buffer.byteLength < this.NES_HEADER_SIZE + (this.FIRST_MOD_BANK + 1) * this.BANK_SIZE) {
+    if (buffer.byteLength < this.NES_HEADER_SIZE + (this.getFirstModBank(version) + 1) * this.BANK_SIZE) {
       return "ROM is smaller than expected";
     }
 
@@ -569,8 +579,8 @@ class RomPatcher {
   }
 
   // Patch given character slot
-  static patchCharacterData(romData, slot, tree) {
-    const data = this.getBankSubarray(romData, this.FIRST_MOD_BANK + slot);
+  static patchCharacterData(romData, slot, tree, version) {
+    const data = this.getBankSubarray(romData, this.getFirstModBank(version) + slot);
     this.writeCharacterData(data, tree);
   }
 
@@ -587,10 +597,18 @@ class RomPatcher {
     return `hash:${hash}`;
   }
   
+  static getVersion(romData) {
+    if(romData) {
+      const hash = hashByteArray(romData);
+      if(this.KNOWN_ROMS[hash]) return this.KNOWN_ROMS[hash].version;
+    }
+    return Object.keys(this.FIRST_MOD_BANK).pop();
+  }
+  
   static isRomOnlineEnabled(romData) {
     const hash = hashByteArray(romData);
-    if(this.KNOWN_ROMS[hash]) return this.KNOWN_ROMS[hash].isOnlineEnabled
-    return true; // assume online is enabled
+    if(this.KNOWN_ROMS[hash]) return this.KNOWN_ROMS[hash].isOnlineEnabled;
+    return Math.floor((romData.byteLength - this.NES_HEADER_SIZE) / this.BANK_SIZE) >= 50;
   }
 
   // Write a 16-bit value, return end offset
@@ -761,7 +779,11 @@ const app = Vue.createApp({
       conf: new Conf(),
       characterFileIndex: [],
       characterUrls: {},
+      characterSlotUrls: {},
       currentCharacterFile: null,
+      characterUpdates: [],
+      updateAnimProps: [ "duration", "hitbox", "hurtbox" ],
+      showLog: false,
       historyStates: [],
       historyPausedChanges: null,  // null: normal, false: paused, true: changes during pause
       routerKey: 0,  // dummy value used to force a router refresh
@@ -774,6 +796,7 @@ const app = Vue.createApp({
       conf: Vue.computed(() => this.conf),
       characterFileIndex: Vue.computed(() => this.characterFileIndex),
       characterUrls: Vue.computed(() => this.characterUrls),
+      characterSlotUrls: Vue.computed(() => this.characterSlotUrls),
     }
   },
 
@@ -884,13 +907,17 @@ const app = Vue.createApp({
       console.debug('fetch static configuration');
       fetch('conf.json')
         .then(response => response.json())
-        .then(data => { this.characterUrls = data.characterUrls; })
+        .then(data => { 
+          this.characterUrls = data.characterUrls; 
+          this.characterSlotUrls = data.characterSlots;
+        })
         .catch(err => console.info(`cannot load static configuration: ${err}`));
     },
 
     loadCharacterData(data) {
       this.tree = data;
       this.routerKey += 1;
+      this.showLog = false;
     },
 
     loadCharacterFile(name) {
@@ -922,6 +949,69 @@ const app = Vue.createApp({
     saveCurrentCharacterFile() {
       if (this.currentCharacterFile !== null && this.currentCharacterFile !== '') {
         this.storage.setCharacterFile(this.currentCharacterFile, this.tree);
+      }
+    },
+    
+    checkFrameProperty(animation, iframe, property, from, to) {
+        let result = "";
+        if(typeof to[property] === "object") {
+          for(const key in from[property]) {
+            const rresult = this.checkProperty(key, from[property], to[property]);
+            if(rresult) result += animation.name+"["+iframe+"]."+property+rresult+"\n";
+          }
+        }    
+        else if(to[property] !== from[property]) {
+          let checkProperty = true;
+          if(property === "duration") {
+            checkProperty = false;
+            for(j in animation.frames) {
+              if(animation.frames[j].hitbox) {
+                checkProperty = true;
+                break;
+              }
+            }
+          }
+          if(checkProperty) result = animation.name+"["+iframe+"]"+this.checkProperty(property, from, to);
+        }
+        if(result) console.log(result);
+        return result;
+    },
+    checkProperty(property, from, to) {
+        let result = "";
+        if(to && to[property] !== from[property]) {
+            result = "."+property+": "+to[property]+" -> "+from[property];
+            to[property] = from[property];
+        }
+        return result;
+    },
+    updateCurrentCharacterFile() {
+      if (this.currentCharacterFile !== null && this.currentCharacterFile !== '') {
+        console.log("updating character "+this.currentCharacterFile+" for game version "+RomPatcher.getVersion());
+        console.log("matching to "+this.tree.name+" in "+this.characterSlotUrls[this.tree.name].data);
+        this.showLog = false;
+        this.characterUpdates = [];
+        fetch(this.characterSlotUrls[this.tree.name].data)
+          .then(response => response.json())
+          .then(data => {
+            for(i in data.animations) {
+              const fromAnim = data.animations[i];
+              const toAnim = this.tree.animations.find(anim => anim.name === fromAnim.name);
+              if(toAnim) {
+                for(j in fromAnim.frames) {
+                  const fromFrame = fromAnim.frames[j];
+                  const toFrame = toAnim.frames[j];
+                  if(toFrame) {
+                    for(prop in this.updateAnimProps) {
+                      result = this.checkFrameProperty(fromAnim, j, this.updateAnimProps[prop], fromFrame, toFrame);
+                      if(result) this.characterUpdates.push(result);
+                    }
+                  }
+                }
+              }
+            }
+            if(this.characterUpdates.length > 0) this.showLog = true;
+          })
+          .catch(err => console.error(err));
       }
     },
 
@@ -1035,6 +1125,7 @@ const app = Vue.createApp({
           <i class="fas fa-w fa-file-export" title="Download as JSON" @click="downloadAsJson()" />
           <i class="fas fa-w fa-file-import" title="Import a JSON" @click="$refs.importCharacterFile.click()" />
           <input type="file" hidden ref="importCharacterFile" @change="importCharacterFile" />
+          <i class="fas fa-w fa-balance-scale-left" title="Update character balance from base" @click="updateCurrentCharacterFile()" v-if="this.currentCharacterFile"/>
         </div>
         <ul>
           <li v-for="info in characterFileIndex" @click="loadCharacterFile(info.name)">{{ info.name }}
@@ -1048,6 +1139,7 @@ const app = Vue.createApp({
     </div>
     <div id="content-container">
       <div id="content" ref="content">
+        <div v-if="showLog"> <h2><button @click="showLog = false">x</button> Updates to {{ this.currentCharacterFile }}</h2> <div v-for="line in this.characterUpdates" style="font-size: 12px; white-space: pre-line"> {{ line }} </div> </div>
         <router-view :key="routerKey"></router-view>
       </div>
     </div>
@@ -2619,22 +2711,15 @@ const AiTab = {
 }
 
 const RomTab = {
-  inject: ['tree','conf','characterFileIndex','characterUrls'],
+  inject: ['tree','conf','characterFileIndex','characterUrls','characterSlotUrls'],
 
   data() {
     return {
       romData: null,
       romError: null,
+      romVersion: null,
       romIsOnlineEnabled: true,
       characterSlot: 0,
-      // mod data stored in stbeditor.slot.${id}
-      characters: [
-          { "id": 0, "name": "sinbad" },
-          { "id": 1, "name": "kiki" },
-          { "id": 2, "name": "pepper" },
-          { "id": 3, "name": "vgsage" },
-          { "id": 4, "name": "sunny" },
-      ],
       characterSlots: null,
       characterFiles: null,
       modTemplate: null,
@@ -2644,6 +2729,7 @@ const RomTab = {
   created() {
     this.patcher = new RomPatcher(localStorage);
     this.romData = this.patcher.loadRomData();
+    this.romVersion = this.romData ? RomPatcher.getVersion(this.romData) : RomPatcher.getVersion();
     this.romIsOnlineEnabled = this.romData ? RomPatcher.isRomOnlineEnabled(this.romData) : true;
     this.characterSlot = this.patcher.getCharacterSlot();
     this.modTemplate = this.getModTemplate();
@@ -2652,6 +2738,16 @@ const RomTab = {
   computed: {
     romName() {
       return this.romData ? RomPatcher.getRomName(this.romData) : null;
+    },
+    romVersions() { 
+      return Object.keys(RomPatcher.FIRST_MOD_BANK);
+    },
+    // mod data stored in stbeditor.slot.${id}
+    // character slots defined in config.json
+    characters() {
+      const charslots = [];
+      for(chars in this.characterSlotUrls) charslots.push({ id: this.characterSlotUrls[chars].slot, name: chars });
+      return charslots;
     },
     characterData() {
       this.characterFiles = {};
@@ -2697,6 +2793,7 @@ const RomTab = {
         if (this.romError === null) {
           this.romData = new Uint8Array(buffer);
           this.patcher.saveRomData(this.romData);
+          this.romVersion = RomPatcher.getVersion(this.romData);
           this.romIsOnlineEnabled = RomPatcher.isRomOnlineEnabled(this.romData);
         }
       });
@@ -2719,10 +2816,10 @@ const RomTab = {
     },
     getCharacterFiles(slot) {
       const characterSlotName = this.characters[slot].name;
-	  const charData = this.characterData;
+      const charData = this.characterData;
       let charDforSlot = [];
       for(charD in charData) {
-		charD = charData[charD];
+        charD = charData[charD];
         if(!charD.data || charD.data.name === characterSlotName) charDforSlot.push(charD);
       }
       return charDforSlot;
@@ -2736,7 +2833,7 @@ const RomTab = {
     },
     loadCharacterSlots() {
       if(!this.characterSlots) this.characterSlots = new Array(5);
-	  const charD = this.characterData;
+      const charD = this.characterData;
       for(i=0; i<this.characterSlots.length; i++) {
         const chars = this.getCharacterSlot(i);
         if(chars) {
@@ -2827,7 +2924,8 @@ const RomTab = {
         <button @click="$refs.importRomFile.click()" style="margin-right: 1em">Load a ROM</button>
         <span v-if="romError" style="color: red">{{ romError }}</span>
         <span v-else-if="romData">A ROM is loaded ({{ romName }})
-            [<input type="checkbox" v-model="this.romIsOnlineEnabled" style="width: 11px; height: 11px"/> Online Enabled?]
+          [v <select v-model="this.romVersion"> <option v-for="version in this.romVersions" :key="version" :value="version">{{ version }}</option> </select>]
+          [<input type="checkbox" v-model="this.romIsOnlineEnabled" disabled style="width: 11px; height: 11px"/> Online Enabled?]
         </span>
         <span v-else>No ROM loaded</span>
         <input type="file" hidden ref="importRomFile" @change="importRomFile" />
@@ -2862,6 +2960,7 @@ const HelpTab = {
           <li>Click on a file name to reload it</li>
           <li>Use <i class="fas fa-trash-alt"/> to remove a saved file</li>
           <li>Files preceded with <i class="fas fa-external-link-alt" /> are loaded from a predefined URL.</li>
+          <li>Click on <i class="fas fa-w fa-balance-scale-left" /> to update a currently loaded file with base character balancing.
         </ul>
       </li>
       <li>

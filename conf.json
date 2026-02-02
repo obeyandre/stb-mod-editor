@@ -12,5 +12,12 @@
     "pepper": "data/standard/pepper.json",
     "vgsage": "data/standard/vgsage.json",
     "sunny": "data/standard/sunny.json"
+  },
+  "characterSlots": {
+    "sinbad": { "slot": 0, "data": "data/sinbad.json" },
+    "kiki": { "slot": 1, "data": "data/kiki.json" },
+    "pepper": { "slot": 2, "data": "data/pepper.json" },
+    "vgsage": { "slot": 3, "data": "data/vgsage.json" },
+    "sunny": { "slot": 4, "data": "data/sunny.json" }
   }
 }
