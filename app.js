@@ -2824,7 +2824,7 @@ const RomTab = {
         if(this.characterSlots[i] && this.characterSlots[i].data) {
           const slot = isOnline ? i : i-4;
           console.debug(`patch ROM character ${this.characterSlots[i].name} ${slot}`);
-          this.patcher.constructor.patchCharacterData(patchedData, slot, this.characterSlots[i].data);
+          this.patcher.constructor.patchCharacterData(patchedData, slot, this.characterSlots[i].data, this.romVersion);
         }
       }
 
