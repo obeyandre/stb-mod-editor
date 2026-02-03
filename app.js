@@ -2813,11 +2813,11 @@ const RomTab = {
     },
 
     patchAndDownloadRom() {
+      console.debug(`patch ROM characters`);
       if(!this.validateBeforePatch()) {
         console.log("could not patch without corruption");
         return;
       }
-      console.debug(`patch ROM characters`);
       const isOnline = this.romIsOnlineEnabled;
       const patchedData = this.romData.slice();  // clone
       for(i=0; i<this.characterSlots.length; i++) {
@@ -2845,28 +2845,36 @@ const RomTab = {
           
           comp = chars.data.tileset.tiles.length - chard.tileset.tiles.length;
           if(comp > 0) result += "+"+comp+" extra tiles\n";
+          if(comp < 0) result += " "+comp+" fewer tiles\n";
           
           comp = chars.data.animations.length - chard.animations.length;
           if(comp > 0) result += "+"+comp+" extra animations\n";
-          else {
-            for(i in chard.animations) {
-              const fromAnim = chard.animations[i];
-              const toAnim = chars.data.animations.find(anim => anim.name === fromAnim.name);
-              if(toAnim) {
+          if(comp < 0) result += " "+comp+" fewer animations\n";
+          
+          const fromAnims = [...chard.animations];
+          for(i in MANDATORY_ANIMATION_NAMES) fromAnims.push(chard[MANDATORY_ANIMATION_NAMES[i]]);
+          const toAnims = [...chars.data.animations];
+          for(i in MANDATORY_ANIMATION_NAMES) toAnims.push(chars.data[MANDATORY_ANIMATION_NAMES[i]]);
+          for(i in fromAnims) {
+            const fromAnim = fromAnims[i];
+            const toAnim = toAnims.find(anim => anim.name === fromAnim.name);
+            if(toAnim) {
                 
-                comp = toAnim.frames.length - fromAnim.frames.length;
-                if(comp > 0) result += "+"+comp+" extra frames in "+toAnim.name+"\n";
-                for(j in fromAnim.frames) {
-                  const fromFrame = fromAnim.frames[j];
-                  const toFrame = toAnim.frames[j];
-                  if(toFrame) {
-                    comp = toFrame.sprites.length - fromFrame.sprites.length;
-                    if(comp > 0) result += "+"+comp+" extra sprites in "+toAnim.name+"["+j+"]\n";
-                  }
+              comp = toAnim.frames.length - fromAnim.frames.length;
+              if(comp > 0) result += "+"+comp+" extra frames in "+toAnim.name+"\n";
+              if(comp < 0) result += " "+comp+" fewer frames in "+toAnim.name+"\n";
+              for(j in fromAnim.frames) {
+                const fromFrame = fromAnim.frames[j];
+                const toFrame = toAnim.frames[j];
+                if(toFrame) {
+                  comp = toFrame.sprites.length - fromFrame.sprites.length;
+                  if(comp > 0) result += "+"+comp+" extra sprites in "+toAnim.name+"["+j+"]\n";
+                  if(comp < 0) result += " "+comp+" fewer sprites in "+toAnim.name+"["+j+"]\n";
                 }
               }
             }
           }
+            
           if(result) { 
             result = "\n["+slot+"] "+chars.name+": \n"+result; 
             this.romPatchLog.push(result);
