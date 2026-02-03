@@ -597,6 +597,10 @@ class RomPatcher {
     return `hash:${hash}`;
   }
   
+  static isKnownRom(romData) {
+    return this.KNOWN_ROMS[hashByteArray(romData)];
+  }
+  
   static getVersion(romData) {
     if(romData) {
       const hash = hashByteArray(romData);
@@ -910,6 +914,13 @@ const app = Vue.createApp({
         .then(data => { 
           this.characterUrls = data.characterUrls; 
           this.characterSlotUrls = data.characterSlots;
+          for(const chars in this.characterSlotUrls) {
+            fetch(this.characterSlotUrls[chars].data)
+              .then(response => response.json())
+              .then(data => {
+                this.characterSlotUrls[chars].tree = data;
+              })
+          }
         })
         .catch(err => console.info(`cannot load static configuration: ${err}`));
     },
@@ -952,6 +963,14 @@ const app = Vue.createApp({
       }
     },
     
+    isAttackAnimation(animation) {
+      for(j in animation.frames) {
+        if(animation.frames[j].hitbox) {
+          return true
+        }
+      }
+      return false;
+    },
     checkFrameProperty(animation, iframe, property, from, to) {
         let result = "";
         if(typeof to[property] === "object") {
@@ -959,17 +978,11 @@ const app = Vue.createApp({
             const rresult = this.checkProperty(key, from[property], to[property]);
             if(rresult) result += animation.name+"["+iframe+"]."+property+rresult+"\n";
           }
-        }    
+        }
         else if(to[property] !== from[property]) {
           let checkProperty = true;
           if(property === "duration") {
-            checkProperty = false;
-            for(j in animation.frames) {
-              if(animation.frames[j].hitbox) {
-                checkProperty = true;
-                break;
-              }
-            }
+            checkProperty = this.isAttackAnimation(animation);
           }
           if(checkProperty) result = animation.name+"["+iframe+"]"+this.checkProperty(property, from, to);
         }
@@ -984,34 +997,32 @@ const app = Vue.createApp({
         }
         return result;
     },
+    updateCharacterFile(fromData, toData) {
+      for(i in fromData.animations) {
+        const fromAnim = fromData.animations[i];
+        const toAnim = toData.animations.find(anim => anim.name === fromAnim.name);
+        if(toAnim) {
+          for(j in fromAnim.frames) {
+            const fromFrame = fromAnim.frames[j];
+            const toFrame = toAnim.frames[j];
+            if(toFrame) {
+              for(prop in this.updateAnimProps) {
+                result = this.checkFrameProperty(fromAnim, j, this.updateAnimProps[prop], fromFrame, toFrame);
+                if(result) this.characterUpdates.push(result);
+              }
+            }
+          }
+        }
+      }
+    },
     updateCurrentCharacterFile() {
-      if (this.currentCharacterFile !== null && this.currentCharacterFile !== '') {
+      if(this.currentCharacterFile !== null && this.currentCharacterFile !== '') {
         console.log("updating character "+this.currentCharacterFile+" for game version "+RomPatcher.getVersion());
         console.log("matching to "+this.tree.name+" in "+this.characterSlotUrls[this.tree.name].data);
         this.showLog = false;
         this.characterUpdates = [];
-        fetch(this.characterSlotUrls[this.tree.name].data)
-          .then(response => response.json())
-          .then(data => {
-            for(i in data.animations) {
-              const fromAnim = data.animations[i];
-              const toAnim = this.tree.animations.find(anim => anim.name === fromAnim.name);
-              if(toAnim) {
-                for(j in fromAnim.frames) {
-                  const fromFrame = fromAnim.frames[j];
-                  const toFrame = toAnim.frames[j];
-                  if(toFrame) {
-                    for(prop in this.updateAnimProps) {
-                      result = this.checkFrameProperty(fromAnim, j, this.updateAnimProps[prop], fromFrame, toFrame);
-                      if(result) this.characterUpdates.push(result);
-                    }
-                  }
-                }
-              }
-            }
-            if(this.characterUpdates.length > 0) this.showLog = true;
-          })
-          .catch(err => console.error(err));
+        this.updateCharacterFile(this.characterSlotUrls[this.tree.name].tree, this.tree);
+        if(this.characterUpdates.length > 0) this.showLog = true;
       }
     },
 
@@ -2719,6 +2730,7 @@ const RomTab = {
       romError: null,
       romVersion: null,
       romIsOnlineEnabled: true,
+      romPatchLog: [],
       characterSlot: 0,
       characterSlots: null,
       characterFiles: null,
@@ -2801,6 +2813,10 @@ const RomTab = {
     },
 
     patchAndDownloadRom() {
+      if(!this.validateBeforePatch()) {
+        console.log("could not patch without corruption");
+        return;
+      }
       console.debug(`patch ROM characters`);
       const isOnline = this.romIsOnlineEnabled;
       const patchedData = this.romData.slice();  // clone
@@ -2814,6 +2830,53 @@ const RomTab = {
 
       downloadBlobData(patchedData, 'super_tilt_bro-patched.nes', 'application/octet-stream');
     },
+    
+    validateBeforePatch() {
+      let isValidated = true;
+      this.romPatchLog = [];
+      if(!RomPatcher.isKnownRom(this.romData)) return true; // only validate against known ROMs.
+      
+      for(slot in this.characterSlots) {
+        if(this.characterSlots[slot] && this.characterSlots[slot].data) {
+          const chars = this.characterSlots[slot];
+          const chard = this.characterSlotUrls[chars.data.name].tree;
+          let result = "";
+          let comp = 0;
+          
+          comp = chars.data.tileset.tiles.length - chard.tileset.tiles.length;
+          if(comp > 0) result += "+"+comp+" extra tiles\n";
+          
+          comp = chars.data.animations.length - chard.animations.length;
+          if(comp > 0) result += "+"+comp+" extra animations\n";
+          else {
+            for(i in chard.animations) {
+              const fromAnim = chard.animations[i];
+              const toAnim = chars.data.animations.find(anim => anim.name === fromAnim.name);
+              if(toAnim) {
+                
+                comp = toAnim.frames.length - fromAnim.frames.length;
+                if(comp > 0) result += "+"+comp+" extra frames in "+toAnim.name+"\n";
+                for(j in fromAnim.frames) {
+                  const fromFrame = fromAnim.frames[j];
+                  const toFrame = toAnim.frames[j];
+                  if(toFrame) {
+                    comp = toFrame.sprites.length - fromFrame.sprites.length;
+                    if(comp > 0) result += "+"+comp+" extra sprites in "+toAnim.name+"["+j+"]\n";
+                  }
+                }
+              }
+            }
+          }
+          if(result) { 
+            result = "\n["+slot+"] "+chars.name+": \n"+result; 
+            this.romPatchLog.push(result);
+            isValidated = false;
+          }
+        }
+      }
+      return isValidated;
+    },
+    
     getCharacterFiles(slot) {
       const characterSlotName = this.characters[slot].name;
       const charData = this.characterData;
@@ -2903,7 +2966,7 @@ const RomTab = {
       </div>
       <div v-if="characterSlotsFilled" >
         <h4>Apply Mod Patch</h4>
-        <button @click="generateAndDownloadModFile()">Download Mod file</button> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://super-tilt-bro.com/build.html" target="_blank"><i class="far fa-long-arrow-alt-right"></i> Build ROM</a>
+        <button @click="generateAndDownloadModFile()">Download Mod file</button> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://super-tilt-bro.com/build.html" target="_blank"><i class="far fa-long-arrow-alt-right" /> Build ROM</a>
         <h5>or</h5>
       </div>
       <div v-if="characterSlotsFilled" >
@@ -2931,7 +2994,8 @@ const RomTab = {
         <input type="file" hidden ref="importRomFile" @change="importRomFile" />
       </p>
       <p>
-        <button v-if="romData" @click="patchAndDownloadRom()">Patch and download ROM</button>
+        <button v-if="romData" @click="patchAndDownloadRom()">Patch and download ROM</button> <span v-if="this.romPatchLog.length > 0" style="font-size: 12px"><span style="color: red">&nbsp; Could not patch ROM without corruption.</span> Fix the issues below OR <a @click="generateAndDownloadModFile()">[Download Mod file]</a> and <a href="https://super-tilt-bro.com/build.html" target="_blank">[<i class="far fa-long-arrow-alt-right"/> Build ROM]</a></span>
+        <div v-if="this.romPatchLog.length > 0"> <h4>Patch Issues</h4> <div v-for="line in this.romPatchLog" style="font-size: 12px; white-space: pre-line"> {{ line }} </div> </div>
       </p>
       </div>
     </div>
